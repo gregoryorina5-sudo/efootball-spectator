@@ -34,16 +34,17 @@ jobs:
           echo "Flutter project: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
       - name: Fix Android Gradle configuration
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           cat > android/settings.gradle <<'EOF'
           pluginManagement {
               def flutterSdkPath = System.getenv("FLUTTER_ROOT")
-              if (flutterSdkPath == null) {
-                  throw new GradleException("FLUTTER_ROOT is not set")
-              }
-
               includeBuild("${flutterSdkPath}/packages/flutter_tools/gradle")
 
               repositories {
@@ -55,6 +56,8 @@ jobs:
 
           plugins {
               id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+              id "com.android.application" version "8.7.3" apply false
+              id "org.jetbrains.kotlin.android" version "2.1.0" apply false
           }
 
           dependencyResolutionManagement {
@@ -70,16 +73,27 @@ jobs:
           EOF
 
           cat > android/build.gradle <<'EOF'
-          plugins {
-              id "com.android.application" version "8.7.3" apply false
-              id "org.jetbrains.kotlin.android" version "2.1.0" apply false
+          allprojects {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+
+          rootProject.buildDir = "../build"
+
+          subprojects {
+              project.buildDir = "${rootProject.buildDir}/${project.name}"
+          }
+
+          subprojects {
+              project.evaluationDependsOn(":app")
+          }
+
+          tasks.register("clean", Delete) {
+              delete rootProject.buildDir
           }
           EOF
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
 
       - name: Install dependencies
         working-directory: ${{ env.PROJECT_DIR }}
